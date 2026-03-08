@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hospital Scheduling Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(to right, #e3f2fd, #ffffff);
+            text-align: center;
+        }
+
+        h1 { color: #2c3e50; }
+
+        input, select {
+            padding: 8px;
+            margin: 5px;
+        }
+
+        button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            background: #3498db;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .section { margin-top: 25px; }
+
+        .row {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .patient {
+            width: 145px;
+            height: 145px;
+            margin: 10px;
+            border-radius: 10px;
+            background: #3498db;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: 1s;
+        }
+
+        .icon { font-size: 22px; }
+
+        .treating { background: #e74c3c !important; }
+        .done { background: #2ecc71 !important; }
+
+        #doctor {
+            height: 150px;
+            border: 3px dashed black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>🏥 Hospital Scheduling Simulator</h1>
+
+<!-- INPUT -->
+<div>
+    <input type="text" id="name" placeholder="Process Name">
+    <input type="text" id="arrival" placeholder="Arrival (HH:MM)">
+    <input type="number" id="burst" placeholder="Burst Time (Minutes)">
+    <input type="number" id="priority" placeholder="Priority">
+    <button onclick="addPatient()">➕ Add</button>
+</div>
+
+<!-- CONTROLS -->
+<div>
+    <select id="algo" onchange="reloadWaiting()">
+        <option value="fcfs">F</option>
+        <option value="sjf">S</option>
+        <option value="priority">P</option>
+    </select>
+
+    <button onclick="start()">▶ Start</button>
+    <button onclick="clearAll()">🧹 Clear</button>
+</div>
+
+<!-- WAITING -->
+<div class="section">
+    <h3>🪑 Waiting Area</h3>
+    <div id="waiting" class="row"></div>
+</div>
+
+<!-- DOCTOR -->
+<div class="section">
+    <h3>👨‍⚕️ Doctor</h3>
+    <div id="doctor">Doctor Free</div>
+</div>
+
+<!-- COMPLETED -->
+<div class="section">
+    <h3>✅ Completed</h3>
+    <div id="done" class="row"></div>
+</div>
+
+<script>
+let patients = [];
+let timers = [];
+
+/* CONVERT HH:MM → seconds */
+function convertToSeconds(timeStr) {
+    let [h, m] = timeStr.split(":").map(Number);
+    return (h * 60 + m); // minutes used as seconds scale
+}
+
+/* ADD PATIENT */
+function addPatient() {
+    let name = document.getElementById("name").value;
+    let arrivalStr = document.getElementById("arrival").value;
+    let burst = parseInt(document.getElementById("burst").value);
+    let priority = parseInt(document.getElementById("priority").value);
+
+    if (!name || !arrivalStr || isNaN(burst)) {
+        alert("Enter Name, Arrival (HH:MM), Burst!");
+        return;
+    }
+
+    let arrival = convertToSeconds(arrivalStr);
+    if (isNaN(priority)) priority = 0;
+
+    patients.push({ name, arrival, burst, priority, displayTime: arrivalStr });
+
+    renderWaiting();
+}
+
+/* RENDER */
+function renderWaiting() {
+    let waiting = document.getElementById("waiting");
+    waiting.innerHTML = "";
+
+    patients.forEach(p => {
+        let div = document.createElement("div");
+        div.className = "patient";
+        div.id = p.name;
+
+        div.innerHTML = `
+            <div class="icon">👤</div>
+            <div><b>${p.name}</b></div>
+            <div>Arival Time: ${p.displayTime}</div>
+            <div>Complition Time: ${p.burst}s</div>
+            <div>Priority: ${p.priority}</div>
+        `;
+
+        waiting.appendChild(div);
+    });
+}
+
+/* RELOAD */
+function reloadWaiting() {
+    clearTimers();
+    document.getElementById("done").innerHTML = "";
+    document.getElementById("doctor").innerText = "Doctor Free";
+    renderWaiting();
+}
+
+/* START */
+function start() {
+    clearTimers();
+    reloadWaiting();
+
+    let algo = document.getElementById("algo").value;
+    let queue = [...patients];
+
+    if (algo === "fcfs") {
+        queue.sort((a,b)=>a.arrival-b.arrival);
+    } else if (algo === "sjf") {
+        queue.sort((a,b)=>a.burst-b.burst);
+    } else {
+        queue.sort((a,b)=>a.priority-b.priority);
+    }
+
+    simulate(queue);
+}
+
+/* SIMULATION */
+function simulate(queue) {
+    let time = 0;
+
+    queue.forEach(p => {
+
+        let t1 = setTimeout(()=>{
+            let elem = document.getElementById(p.name);
+            let doctor = document.getElementById("doctor");
+
+            doctor.innerHTML = "";
+            doctor.appendChild(elem);
+            elem.classList.add("treating");
+
+        }, time*1000);
+
+        timers.push(t1);
+
+        time += p.burst;
+
+        let t2 = setTimeout(()=>{
+            let elem = document.getElementById(p.name);
+            elem.classList.remove("treating");
+            elem.classList.add("done");
+            document.getElementById("done").appendChild(elem);
+            document.getElementById("doctor").innerText = "Doctor Free";
+        }, time*1000);
+
+        timers.push(t2);
+    });
+}
+
+/* CLEAR BUTTON */
+function clearAll() {
+    clearTimers();
+    patients = [];
+    document.getElementById("waiting").innerHTML = "";
+    document.getElementById("done").innerHTML = "";
+    document.getElementById("doctor").innerText = "Doctor Free";
+}
+
+/* CLEAR TIMERS */
+function clearTimers() {
+    timers.forEach(t => clearTimeout(t));
+    timers = [];
+}
+</script>
+
+</body>
+</html>
